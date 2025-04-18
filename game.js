@@ -1,124 +1,119 @@
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-let gameStarted = false;
-let player = { x: canvas.width / 2, y: canvas.height / 2, speed: 5, color: 'red', direction: { x: 0, y: 0 }, velocity: 0, grounded: true, health: 10 };
+// Kamera i gracz
+let camera = { x: 0, y: 0 };
+let player = {
+    x: 100,
+    y: 100,
+    w: 50,
+    h: 50,
+    speed: 5,
+    vx: 0,
+    vy: 0,
+    gravity: 0.5,
+    jumpPower: -10,
+    grounded: false,
+    health: 100,
+    color: "red"
+};
 
 // Przeciwnicy
 let enemies = [
-    { x: 100, y: 100, speed: 2, health: 10 },
-    { x: 500, y: 300, speed: 2, health: 10 }
+    { x: 300, y: 300, w: 50, h: 50, speed: 1.5, color: "green" },
+    { x: 500, y: 150, w: 50, h: 50, speed: 2, color: "green" }
 ];
 
-// Kamera
-let camera = { x: 0, y: 0 };
+// Klawisze
+let keys = {};
+document.addEventListener("keydown", e => keys[e.key] = true);
+document.addEventListener("keyup", e => keys[e.key] = false);
 
-function gameLoop() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Fizyka skoku
-    if (!player.grounded) {
-        player.velocity += 0.5;
-    } else {
-        player.velocity = 0;
-    }
-    player.y += player.velocity;
-
-    if (player.y > canvas.height - 50) {
-        player.y = canvas.height - 50;
-        player.grounded = true;
-    } else {
+// Skok przyciskiem
+document.getElementById("jumpBtn").addEventListener("click", () => {
+    if (player.grounded) {
+        player.vy = player.jumpPower;
         player.grounded = false;
     }
+});
 
-    // Rysowanie gracza
+// Sterowanie
+function updateMovement() {
+    if (keys["a"] || keys["ArrowLeft"]) player.vx = -player.speed;
+    else if (keys["d"] || keys["ArrowRight"]) player.vx = player.speed;
+    else player.vx = 0;
+}
+
+// Fizyka
+function applyPhysics() {
+    player.vy += player.gravity;
+    player.x += player.vx;
+    player.y += player.vy;
+
+    if (player.y + player.h > canvas.height) {
+        player.y = canvas.height - player.h;
+        player.vy = 0;
+        player.grounded = true;
+    }
+}
+
+// Rysowanie
+function drawPlayer() {
     ctx.fillStyle = player.color;
-    ctx.fillRect(player.x - camera.x, player.y - camera.y, 50, 50);
+    ctx.fillRect(player.x - camera.x, player.y - camera.y, player.w, player.h);
+}
 
-    // Rysowanie przeciwników
+function drawEnemies() {
     enemies.forEach(enemy => {
-        ctx.fillStyle = 'green';
-        ctx.fillRect(enemy.x - camera.x, enemy.y - camera.y, 50, 50);
+        // Proste AI – podążanie
+        if (enemy.x < player.x) enemy.x += enemy.speed;
+        if (enemy.x > player.x) enemy.x -= enemy.speed;
+        if (enemy.y < player.y) enemy.y += enemy.speed;
+        if (enemy.y > player.y) enemy.y -= enemy.speed;
 
-        // Logika AI
-        let distance = Math.sqrt(Math.pow(enemy.x - player.x, 2) + Math.pow(enemy.y - player.y, 2));
-        if (distance < 100) {
-            if (enemy.x < player.x) enemy.x -= enemy.speed;
-            if (enemy.x > player.x) enemy.x += enemy.speed;
-            if (enemy.y < player.y) enemy.y -= enemy.speed;
-            if (enemy.y > player.y) enemy.y += enemy.speed;
-        } else {
-            if (enemy.x < player.x) enemy.x += enemy.speed;
-            if (enemy.x > player.x) enemy.x -= enemy.speed;
-            if (enemy.y < player.y) enemy.y += enemy.speed;
-            if (enemy.y > player.y) enemy.y -= enemy.speed;
-        }
-
-        // Sprawdzanie, czy przeciwnicy biją gracza
-        if (Math.abs(player.x - enemy.x) < 50 && Math.abs(player.y - enemy.y) < 50) {
-            player.health -= 1;
+        // Kolizja = damage
+        if (
+            Math.abs(player.x - enemy.x) < 50 &&
+            Math.abs(player.y - enemy.y) < 50
+        ) {
+            player.health -= 0.1;
             if (player.health <= 0) {
-                alert('Game Over');
+                alert("Zginąłeś!");
+                player.health = 100;
+                player.x = 100;
+                player.y = 100;
             }
         }
+
+        ctx.fillStyle = enemy.color;
+        ctx.fillRect(enemy.x - camera.x, enemy.y - camera.y, enemy.w, enemy.h);
     });
+}
 
-    // Rysowanie działek
-    // Prosta logika strzałów w kierunku gracza
-    turrets.forEach(turret => {
-        let distance = Math.sqrt(Math.pow(turret.x - player.x, 2) + Math.pow(turret.y - player.y, 2));
-        if (distance < turret.range) {
-            turret.shooting = true;
-        } else {
-            turret.shooting = false;
-        }
+// Kamera
+function updateCamera() {
+    camera.x = player.x - canvas.width / 2 + player.w / 2;
+    camera.y = player.y - canvas.height / 2 + player.h / 2;
+}
 
-        if (turret.shooting) {
-            ctx.beginPath();
-            ctx.moveTo(turret.x, turret.y);
-            ctx.lineTo(player.x, player.y);
-            ctx.stroke();
-        }
-    });
-
-    // Rysowanie kamerki
-    camera.x = player.x - canvas.width / 2;
-    camera.y = player.y - canvas.height / 2;
-
-    movePlayer();
+// Główna pętla
+function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    updateMovement();
+    applyPhysics();
+    updateCamera();
+    drawPlayer();
+    drawEnemies();
     requestAnimationFrame(gameLoop);
 }
 
-function movePlayer() {
-    player.x += player.direction.x * player.speed;
-    player.y += player.direction.y * player.speed;
-}
-
 function startGame() {
-    gameStarted = true;
-    document.getElementById('gui').style.display = 'none';
+    document.getElementById("gui").style.display = "none";
     gameLoop();
 }
 
-document.getElementById('jumpBtn').addEventListener('click', () => {
-    if (player.grounded) {
-        player.velocity = -10; // Skok
-        player.grounded = false;
-    }
-});
-
-document.getElementById('joystick').addEventListener('touchmove', (event) => {
-    let touch = event.touches[0];
-    let centerX = joystick.offsetLeft + joystick.offsetWidth / 2;
-    let centerY = joystick.offsetTop + joystick.offsetHeight / 2;
-    player.direction.x = (touch.clientX - centerX) / joystick.offsetWidth;
-    player.direction.y = (touch.clientY - centerY) / joystick.offsetHeight;
-});
-
-window.addEventListener('resize', () => {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-});
-                     
+// Start po kliknięciu
+window.startGame = startGame;

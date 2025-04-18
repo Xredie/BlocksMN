@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Minecraft Vectaria Multiplayer</title>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; background: #202020; }
+        canvas { display: block; width: 100%; height: 100%; }
+        #gui { position: fixed; top: 10px; left: 10px; background: rgba(0, 0, 0, 0.7); padding: 10px; color: white; }
+        #joystick { position: absolute; bottom: 20px; left: 20px; width: 100px; height: 100px; background: rgba(255, 255, 255, 0.5); border-radius: 50%; }
+        #jumpBtn { position: absolute; bottom: 20px; right: 20px; background: rgba(255, 255, 255, 0.7); padding: 10px; color: black; }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="gui">
+        <button onclick="startGame()">Start Game</button>
+    </div>
+    <div id="joystick"></div>
+    <button id="jumpBtn">Jump</button>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let gameStarted = false;
+        let player = { x: canvas.width / 2, y: canvas.height / 2, speed: 5, color: 'red', direction: { x: 0, y: 0 }, socket: null };
+
+        // WebSocket connection
+        const socket = new WebSocket('ws://localhost:8080');
+        socket.onopen = () => {
+            console.log('Connected to WebSocket server');
+        };
+        socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.id !== player.id) {
+                // Update other players' positions
+                updatePlayerPosition(data);
+            }
+        };
+
+        function startGame() {
+            gameStarted = true;
+            document.getElementById('gui').style.display = 'none';
+            player.id = Date.now(); // Unique player ID
+            socket.send(JSON.stringify({ id: player.id, x: player.x, y: player.y }));
+            gameLoop();
+        }
+
+        function gameLoop() {
+            if (!gameStarted) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, 50, 50);
+
+            movePlayer();
+            socket.send(JSON.stringify({ id: player.id, x: player.x, y: player.y }));
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function movePlayer() {
+            player.x += player.direction.x * player.speed;
+            player.y += player.direction.y * player.speed;
+        }
+
+        // Handle touch controls
+        let joystick = document.getElementById('joystick');
+        joystick.addEventListener('touchmove', (event) => {
+            let touch = event.touches[0];
+            let centerX = joystick.offsetLeft + joystick.offsetWidth / 2;
+            let centerY = joystick.offsetTop + joystick.offsetHeight / 2;
+            player.direction.x = (touch.clientX - centerX) / joystick.offsetWidth;
+            player.direction.y = (touch.clientY - centerY) / joystick.offsetHeight;
+        });
+
+        document.getElementById('jumpBtn').addEventListener('click', () => {
+            // Add jump functionality here (just a simple console log for now)
+            console.log('Jump!');
+        });
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        function updatePlayerPosition(data) {
+            // Update another player's position
+            console.log('Player moved: ', data);
+            // Here, you could draw their character too!
+        }
+    </script>
+</b
+  ody>
+</html>
